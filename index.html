@@ -4,407 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050505" />
-    <title>Image AR Video</title>
-
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
-    <style>
-      :root {
-        color-scheme: dark;
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #050505;
-        color: #fff;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html,
-      body {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        background: #050505;
-      }
-
-      body {
-        position: fixed;
-        inset: 0;
-        touch-action: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      a-scene {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-      }
-
-      .loading {
-        position: fixed;
-        inset: 0;
-        z-index: 20;
-        display: grid;
-        place-items: center;
-        gap: 14px;
-        padding: 24px;
-        background: #050505;
-        transition:
-          opacity 240ms ease,
-          visibility 240ms ease;
-      }
-
-      .loading.is-hidden {
-        visibility: hidden;
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      .loader {
-        width: 34px;
-        height: 34px;
-        border: 2px solid rgb(255 255 255 / 0.22);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 900ms linear infinite;
-      }
-
-      .loading-text {
-        margin: 0;
-        font-size: 14px;
-        line-height: 1.4;
-        color: rgb(255 255 255 / 0.76);
-      }
-
-      .hud {
-        position: fixed;
-        top: max(14px, env(safe-area-inset-top));
-        left: 50%;
-        z-index: 10;
-        display: flex;
-        align-items: center;
-        min-height: 36px;
-        padding: 8px 12px;
-        border: 1px solid rgb(255 255 255 / 0.14);
-        border-radius: 999px;
-        background: rgb(0 0 0 / 0.35);
-        color: rgb(255 255 255 / 0.92);
-        font-size: 13px;
-        font-weight: 600;
-        line-height: 1;
-        transform: translateX(-50%);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        user-select: none;
-      }
-
-      .hud::before {
-        content: "";
-        width: 8px;
-        height: 8px;
-        margin-right: 8px;
-        border-radius: 50%;
-        background: #f6c958;
-        box-shadow: 0 0 18px rgb(246 201 88 / 0.72);
-      }
-
-      .hud.is-detected::before {
-        background: #51e083;
-        box-shadow: 0 0 18px rgb(81 224 131 / 0.72);
-      }
-
-      .tap-to-start {
-        position: fixed;
-        inset: auto 16px max(16px, env(safe-area-inset-bottom)) 16px;
-        z-index: 15;
-        display: none;
-        justify-content: center;
-      }
-
-      .tap-to-start.is-visible {
-        display: flex;
-      }
-
-      .tap-to-start button {
-        max-width: min(420px, 100%);
-        padding: 10px 14px;
-        border: 1px solid rgb(255 255 255 / 0.14);
-        border-radius: 999px;
-        background: rgb(0 0 0 / 0.42);
-        color: rgb(255 255 255 / 0.88);
-        font: inherit;
-        font-size: 13px;
-        line-height: 1.35;
-        text-align: center;
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    </style>
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Point your camera at the printed image and watch it come to life." />
+    <meta name="robots" content="noindex" />
+    <meta property="og:title" content="Vivid AR" />
+    <meta property="og:description" content="Point your camera at the printed image and watch it come to life." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Vivid AR</title>
   </head>
-
   <body>
-    <div id="loading" class="loading" aria-live="polite">
-      <div class="loader" aria-hidden="true"></div>
-      <p class="loading-text">Requesting camera access</p>
-    </div>
+    <main id="app">
+      <div id="stage" class="stage" aria-hidden="true"></div>
 
-    <div id="status" class="hud" aria-live="polite">Scanning</div>
-    <div id="tapHint" class="tap-to-start">
-      <button id="tapButton" type="button">Tap to allow camera</button>
-    </div>
+      <section id="intro" class="screen" hidden>
+        <div class="card">
+          <div class="mark" aria-hidden="true"></div>
+          <h1 id="introTitle">Bring the photo to life</h1>
+          <p>Point your camera at the printed image.</p>
+          <button id="startButton" class="button primary" type="button">Start camera</button>
+          <p class="fine">Your camera feed stays on your device.</p>
+        </div>
+      </section>
 
-    <a-scene
-      mindar-image="imageTargetSrc: assets/targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
-      color-space="sRGB"
-      renderer="colorManagement: true, physicallyCorrectLights"
-      vr-mode-ui="enabled: false"
-      device-orientation-permission-ui="enabled: false"
-      embedded
-    >
-      <a-assets timeout="3000">
-        <video
-          id="arVideo"
-          src="assets/video.mp4"
-          preload="auto"
-          loop
-          muted
-          playsinline
-          webkit-playsinline
-          crossorigin="anonymous"
-        ></video>
-      </a-assets>
+      <section id="status" class="screen" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="statusText">Loading…</p>
+      </section>
 
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <section id="error" class="screen" role="alert" hidden>
+        <div class="card">
+          <h1 id="errorTitle">Something went wrong</h1>
+          <p id="errorText"></p>
+          <button id="retryButton" class="button primary" type="button">Try again</button>
+        </div>
+      </section>
 
-      <a-entity id="target" mindar-image-target="targetIndex: 0">
-        <a-video
-          id="videoPlane"
-          src="#arVideo"
-          position="0 0 0"
-          rotation="0 0 0"
-          width="1"
-          height="1"
-          material="shader: flat; src: #arVideo"
-        ></a-video>
-      </a-entity>
-    </a-scene>
+      <div id="scanHint" class="scan-hint" hidden>
+        <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <p class="pill">Point at the image</p>
+      </div>
 
-    <script>
-      const scene = document.querySelector("a-scene");
-      const target = document.getElementById("target");
-      const video = document.getElementById("arVideo");
-      const plane = document.getElementById("videoPlane");
-      const loading = document.getElementById("loading");
-      const loadingText = loading.querySelector(".loading-text");
-      const status = document.getElementById("status");
-      const tapHint = document.getElementById("tapHint");
-      const tapButton = document.getElementById("tapButton");
-      let arStarted = false;
-      let starting = false;
-
-      video.muted = true;
-      video.defaultMuted = true;
-      video.playsInline = true;
-      video.setAttribute("muted", "");
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-
-      const setStatus = (text, detected = false) => {
-        status.textContent = text;
-        status.classList.toggle("is-detected", detected);
-      };
-
-      const setLoadingMessage = (text) => {
-        loadingText.textContent = text;
-      };
-
-      const hideLoading = () => {
-        arStarted = true;
-        loading.classList.add("is-hidden");
-        tapHint.classList.remove("is-visible");
-      };
-
-      const checkRequiredAsset = async (url, label) => {
-        try {
-          const response = await fetch(url, { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`${label} returned ${response.status}`);
-          }
-        } catch {
-          setLoadingMessage(`Missing or blocked file: ${url}`);
-        }
-      };
-
-      const fitPlaneToVideo = () => {
-        if (!video.videoWidth || !video.videoHeight) return;
-        const aspect = video.videoWidth / video.videoHeight;
-
-        plane.setAttribute("width", 1);
-        plane.setAttribute("height", 1 / aspect);
-      };
-
-      const primeVideoPlayback = async () => {
-        try {
-          video.muted = true;
-          await video.play();
-          video.pause();
-          video.currentTime = 0;
-        } catch {
-          // Mobile browsers may still require a later tap for video playback.
-        }
-      };
-
-      const requestCameraPermission = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-          },
-          audio: false,
-        });
-
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      const startAr = async () => {
-        if (starting || arStarted) return;
-        starting = true;
-        tapHint.classList.remove("is-visible");
-
-        if (!window.isSecureContext) {
-          setLoadingMessage("Camera needs HTTPS on phones");
-          starting = false;
-          return;
-        }
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setLoadingMessage("Camera access is not available in this browser");
-          starting = false;
-          return;
-        }
-
-        try {
-          setLoadingMessage("Requesting camera access");
-          await requestCameraPermission();
-          setLoadingMessage("Starting AR");
-          if (!scene.systems || !scene.systems["mindar-image-system"]) {
-            throw new Error("MindAR system is not ready");
-          }
-          await scene.systems["mindar-image-system"].start();
-        } catch (error) {
-          const name = error && error.name ? error.name : "";
-
-          if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-            setLoadingMessage("Camera permission was blocked. Enable it in site settings.");
-          } else {
-            setLoadingMessage((error && error.message) || "Tap to allow camera");
-            tapHint.classList.add("is-visible");
-          }
-
-          starting = false;
-        }
-      };
-
-      video.addEventListener("loadedmetadata", fitPlaneToVideo, { once: true });
-
-      checkRequiredAsset("assets/targets.mind", "AR target");
-      checkRequiredAsset("assets/video.mp4", "Video");
-
-      const startWhenReady = () => {
-        if (scene.hasLoaded || scene.loaded) {
-          startAr();
-          return;
-        }
-
-        scene.addEventListener("loaded", startAr, { once: true });
-        window.setTimeout(startAr, 1500);
-      };
-
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", startWhenReady, { once: true });
-      } else {
-        startWhenReady();
-      }
-
-      scene.addEventListener("arReady", () => {
-        hideLoading();
-        setStatus("Scanning");
-        primeVideoPlayback();
-      });
-
-      scene.addEventListener("arError", () => {
-        hideLoading();
-        setStatus("Camera unavailable");
-      });
-
-      window.setTimeout(() => {
-        if (arStarted) return;
-
-        if (!window.isSecureContext) {
-          setLoadingMessage("Camera needs HTTPS on phones");
-          return;
-        }
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setLoadingMessage("Camera access is not available in this browser");
-          return;
-        }
-
-        setLoadingMessage("Tap to allow camera");
-        tapHint.classList.add("is-visible");
-      }, 7000);
-
-      tapButton.addEventListener("click", startAr);
-
-      target.addEventListener("targetFound", async () => {
-        setStatus("Image detected", true);
-
-        try {
-          video.muted = true;
-          video.currentTime = 0;
-          await video.play();
-          plane.setAttribute("material", "shader: flat; src: #arVideo");
-          const materialComponent = plane.components && plane.components.material;
-          const materialMap =
-            materialComponent && materialComponent.material && materialComponent.material.map;
-          if (materialMap) {
-            materialMap.needsUpdate = true;
-          }
-        } catch {
-          tapButton.textContent = "Tap to play video";
-          tapHint.classList.add("is-visible");
-        }
-      });
-
-      target.addEventListener("targetLost", () => {
-        setStatus("Scanning");
-        video.pause();
-      });
-
-      window.addEventListener(
-        "pointerdown",
-        () => {
-          if (!target.object3D || !target.object3D.visible) return;
-          video.play().then(() => tapHint.classList.remove("is-visible")).catch(() => {});
-        },
-        { passive: true },
-      );
-
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-          video.pause();
-        }
-      });
-    </script>
+      <button id="soundButton" class="pill sound" type="button" hidden aria-pressed="false">Tap for sound</button>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -1,0 +1,15 @@
+{
+  "id": "default",
+  "title": "EXCEL 2026",
+  "targets": "targets.mind",
+  "items": [
+    {
+      "id": "excel-2026-poster",
+      "title": "EXCEL 2026 poster",
+      "video": "video.mp4",
+      "fit": "cover",
+      "loop": true,
+      "audio": false
+    }
+  ]
+}

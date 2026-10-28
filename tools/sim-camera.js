@@ -12,6 +12,7 @@
 //   simres=1280x720     camera resolution
 //   simnoise=0..1       sensor noise strength (default 0.35)
 //   simscale=0..1       target height as a fraction of the frame (default 0.55)
+//   simfov=deg          simulated lens field of view across the long side (default 65)
 (() => {
   const params = new URLSearchParams(location.search);
   const [W, H] = (params.get("simres") || "1280x720").split("x").map(Number);
@@ -19,6 +20,7 @@
   const motion = params.get("simmotion") || "static";
   const noiseLevel = Number(params.get("simnoise") ?? 0.35);
   const targetScale = Number(params.get("simscale") ?? 0.55);
+  const simFov = Number(params.get("simfov") ?? 65);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -82,7 +84,10 @@
     return img;
   };
 
-  const sim = (window.__sim = { corners: null, frame: 0, ready: false, width: W, height: H });
+  const sim = (window.__sim = { corners: null, frame: 0, ready: false, width: W, height: H, history: new Map() });
+  const BAR = 8;
+  const BAR_X = 4;
+  const BAR_Y = 4;
 
   // Seeded-ish smooth random walk for hand shake.
   let shake = { x: 0, y: 0, r: 0, vx: 0, vy: 0, vr: 0 };
@@ -126,9 +131,9 @@
 
     // Pinhole projection of the print rotated by `yaw` about its vertical axis.
     // Each image column is drawn as a vertical strip with its own depth, which
-    // is exact for yaw (vertical lines stay vertical). f is chosen so that the
+    // is exact for yaw (vertical lines stay vertical). z0 is chosen so that the
     // un-tilted print appears at `scale`.
-    const f = 1000;
+    const f = Math.max(W, H) / 2 / Math.tan((simFov * Math.PI) / 360);
     const z0 = (f / scale) * dist;
     const project = (u, v) => {
       const z = z0 + u * Math.sin(yaw);
@@ -180,7 +185,35 @@
     ]
       .map(([u, v]) => project(u, v))
       .map(([x, y]) => [cx + x * cos - y * sin, cy + x * sin + y * cos]);
+
+    // Stamp the frame id as a 16-bit barcode so a test can tell which camera
+    // frame is actually on screen (the display may lag the stream).
+    const id = sim.frame & 0xffff;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, BAR_X + 16 * BAR + 4, BAR_Y + BAR + 4);
+    ctx.fillStyle = "#000";
+    for (let b = 0; b < 16; b++) if (id & (1 << b)) ctx.fillRect(BAR_X + b * BAR, BAR_Y, BAR, BAR);
+    sim.history.set(id, sim.corners);
+    sim.history.delete((id - 240) & 0xffff);
     sim.frame++;
+  };
+
+  // Reads the barcode from any drawable (video element or canvas showing the
+  // camera feed at its native resolution) and returns that frame's corners.
+  const probe = document.createElement("canvas");
+  probe.width = BAR_X + 16 * BAR;
+  probe.height = BAR_Y + BAR;
+  const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+  sim.cornersShownIn = (source) => {
+    probeCtx.drawImage(source, 0, 0, probe.width, probe.height, 0, 0, probe.width, probe.height);
+    const px = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+    let id = 0;
+    for (let b = 0; b < 16; b++) {
+      const x = BAR_X + b * BAR + (BAR >> 1);
+      const y = BAR_Y + (BAR >> 1);
+      if (px[(y * probe.width + x) * 4] < 128) id |= 1 << b;
+    }
+    return sim.history.get(id) || null;
   };
 
   const ready = loadTarget().then((t) => {

@@ -1,0 +1,248 @@
+:root {
+  --bg: #050505;
+  --fg: #fff;
+  --muted: rgb(255 255 255 / 0.72);
+  --glass: rgb(12 12 12 / 0.55);
+  --line: rgb(255 255 255 / 0.16);
+  --accent: #51e083;
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+}
+
+.ar-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: var(--bg);
+  text-align: center;
+  transition: opacity 220ms ease;
+}
+
+.screen p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.card {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 340px;
+}
+
+.card h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.card .fine {
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.45);
+}
+
+.mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgb(81 224 131 / 0.9), rgb(64 140 255 / 0.9)),
+    var(--bg);
+  box-shadow: 0 10px 40px rgb(81 224 131 / 0.25);
+}
+
+.button {
+  min-width: 200px;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 12px 22px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button.primary {
+  background: var(--fg);
+  color: #000;
+}
+
+.button:active {
+  transform: scale(0.98);
+}
+
+.button:focus-visible,
+.pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgb(255 255 255 / 0.2);
+  border-top-color: var(--fg);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.pill {
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.scan-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  animation: fade-in 300ms ease both;
+}
+
+.scan-hint .pill {
+  position: absolute;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 16px));
+}
+
+.scan-frame {
+  position: relative;
+  width: min(68vw, 46vh);
+  aspect-ratio: 3 / 4;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+.scan-frame i {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgb(255 255 255 / 0.85);
+}
+
+.scan-frame i:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 10px;
+}
+
+.scan-frame i:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-left: 0;
+  border-bottom: 0;
+  border-top-right-radius: 10px;
+}
+
+.scan-frame i:nth-child(3) {
+  bottom: 0;
+  right: 0;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 10px;
+}
+
+.scan-frame i:nth-child(4) {
+  bottom: 0;
+  left: 0;
+  border-right: 0;
+  border-top: 0;
+  border-bottom-left-radius: 10px;
+}
+
+.sound {
+  position: fixed;
+  z-index: 15;
+  right: 16px;
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  cursor: pointer;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(0.96);
+    opacity: 0.7;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-frame,
+  .spinner {
+    animation-duration: 0s;
+  }
+}
