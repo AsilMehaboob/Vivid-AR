@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => ({
   plugins: mode === "phone" ? [basicSsl()] : [],
   server: {
     host: mode === "phone" ? true : undefined,
+    // Media tools write large files; never let the watcher trip over them.
+    watch: { ignored: ["**/*.tmp.*", "**/*.orig.*", "**/.cache/**", "**/content/**"] },
   },
   build: {
     target: "es2020",

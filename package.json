@@ -5,18 +5,32 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev:phone": "vite --mode phone",
+    "build": "npm run typecheck && npm run content:check && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "content": "node tools/content.mjs",
+    "content:check": "node tools/content.mjs check",
+    "test:tracking": "node tools/track-test.mjs"
   },
   "devDependencies": {
+    "@msgpack/msgpack": "^2.8.0",
+    "@puppeteer/browsers": "^2.10.5",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-basic-ssl": "^2.0.0",
+    "ffmpeg-static": "^5.2.0",
     "puppeteer-core": "^24.10.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },
   "dependencies": {
     "three": "^0.170.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "ffmpeg-static@5.2.0": true
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

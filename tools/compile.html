@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Compile image targets</title>
+  </head>
+  <body>
+    <p>Driven by <code>npm run content</code>. Exposes <code>window.compileTargets(urls)</code>.</p>
+    <script type="module">
+      import { Compiler } from "/src/vendor/mindar/mindar-image.prod.js";
+
+      window.compileTargets = async (urls) => {
+        const images = await Promise.all(
+          urls.map(async (url) => {
+            const img = new Image();
+            img.src = url;
+            await img.decode();
+            return img;
+          }),
+        );
+        const compiler = new Compiler();
+        window.__progress = 0;
+        await compiler.compileImageTargets(images, (p) => (window.__progress = p));
+        const bytes = compiler.exportData();
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(binary);
+      };
+      window.__ready = true;
+    </script>
+  </body>
+</html>

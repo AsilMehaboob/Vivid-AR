@@ -18,7 +18,7 @@ export interface ExperienceItem {
   video: string;
   /** Still of the video's first frame; shown instantly while the video loads. */
   poster?: string;
-  /** Source image used to compile targets.mind (not loaded at runtime). */
+  /** Print image used to compile targets.mind, relative to content/<collection>/ (never deployed). */
   image?: string;
   /** How the video fills the printed image. Default "cover". */
   fit?: Fit;

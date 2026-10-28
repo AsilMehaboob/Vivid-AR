@@ -2,12 +2,12 @@
 // (tools/sim-camera.js) and reports overlay accuracy and wobble per scenario.
 //
 //   node tools/track-test.mjs --url http://localhost:5173/ [--scenarios static,shake,pan]
-//        [--viewport 390x844] [--res 720x1280] [--src /path/to/target.jpg] [--headed]
+//        [--viewport 390x844] [--res 720x1280] [--src experiences/<c>/<item>/poster.webp]
+//        [--cpu 4] [--ms 8000] [--extra "simnoise=1&fov=63"] [--screenshot prefix] [--headed]
 //
 // The page must expose window.__overlayCorners() returning
 // { drawn: [[x,y]x4], truth: [[x,y]x4] } in CSS pixels, or null when nothing is shown.
-import puppeteer from "puppeteer-core";
-import { existsSync } from "node:fs";
+import { launchBrowser } from "./lib/browser.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => {
@@ -20,35 +20,13 @@ const url = args.url || "http://localhost:5173/";
 const scenarios = (args.scenarios || "static,shake,pan").split(",");
 const [vw, vh] = (args.viewport || "390x844").split("x").map(Number);
 const res = args.res || "720x1280";
-const src = args.src || "/__sim/target";
+if (!args.src) throw new Error("--src <image or video URL path, without leading slash> is required");
+const src = args.src;
 const measureMs = Number(args.ms || 8000);
 const extra = args.extra ? `&${args.extra}` : "";
 const inject = args.inject; // optional JS file defining window.__overlayCorners (used for the legacy page)
 
-const browserPath = [
-  process.env.BROWSER_PATH,
-  "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-  "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome",
-  "/usr/bin/chromium",
-].find((p) => p && existsSync(p));
-if (!browserPath) throw new Error("No Chrome/Edge found; set BROWSER_PATH");
-
-const browser = await puppeteer.launch({
-  executablePath: browserPath,
-  headless: !args.headed,
-  args: [
-    "--use-fake-ui-for-media-stream",
-    "--autoplay-policy=no-user-gesture-required",
-    "--ignore-gpu-blocklist",
-    "--enable-gpu",
-    ...(process.platform === "win32" ? ["--use-angle=d3d11"] : []),
-    "--enable-gpu-rasterization",
-    "--disable-background-timer-throttling",
-    "--disable-renderer-backgrounding",
-  ],
-});
+const browser = await launchBrowser({ headless: !args.headed });
 
 const results = {};
 try {

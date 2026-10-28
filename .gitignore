@@ -31,3 +31,4 @@ desktop.ini
 # Claude Code local state (launch.json is shared on purpose)
 .claude/*
 !.claude/launch.json
+.cache/

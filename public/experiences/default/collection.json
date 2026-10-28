@@ -6,10 +6,11 @@
     {
       "id": "excel-2026-poster",
       "title": "EXCEL 2026 poster",
-      "video": "video.mp4",
+      "video": "excel-2026-poster/video.mp4",
       "fit": "cover",
       "loop": true,
-      "audio": false
+      "audio": false,
+      "poster": "excel-2026-poster/poster.webp"
     }
   ]
 }
