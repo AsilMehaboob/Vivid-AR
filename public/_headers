@@ -1,0 +1,20 @@
+# Netlify / Cloudflare Pages headers. Keep in sync with vercel.json.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob: data:; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+
+# Fingerprinted build output never changes.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Content can be swapped without a rebuild: short cache, served stale while revalidating.
+/experiences/*
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/index.html
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache

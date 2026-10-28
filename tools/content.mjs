@@ -3,7 +3,7 @@
 //
 //   npm run content -- add <collection> <id> --image print.jpg --video clip.mp4
 //                      [--title "…"] [--fit cover|contain|stretch] [--audio] [--no-loop]
-//   npm run content -- build <collection>      recompile targets.mind, make missing posters
+//   npm run content -- build <collection>      recompile targets.mind, make missing posters [--no-gzip]
 //   npm run content -- optimize <collection>   re-encode videos for fast mobile playback
 //                      (skips videos it already encoded; [--force] [--crf 20])
 //   npm run content -- check [collection]      validate collections (runs before `npm run build`)
@@ -21,6 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ffmpegPath from "ffmpeg-static";
 import { decode } from "@msgpack/msgpack";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { validateCollection } from "../src/content.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,7 +30,7 @@ const sourceDir = path.join(root, "content");
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
 // Budgets that keep first detection fast on mobile data. Exceeding them warns.
-const BUDGET = { video: 4 * 1024 * 1024, poster: 300 * 1024, mind: 1.5 * 1024 * 1024, itemsPerCollection: 30 };
+const BUDGET = { video: 4 * 1024 * 1024, poster: 300 * 1024, mindPerItem: 600 * 1024, itemsPerCollection: 30 };
 // Long side of the image used for compiling. Larger adds download size and
 // detection time without improving tracking (the print rarely covers more
 // than ~1000 camera pixels).
@@ -50,6 +51,9 @@ for (let i = 0; i < rest.length; i++) {
 
 const log = (...m) => console.log(...m);
 const tempFile = (ext) => path.join(os.tmpdir(), `vivid-${process.pid}-${Math.random().toString(36).slice(2)}${ext}`);
+// targets.mind is stored gzipped (the app inflates it): halves the download on
+// every host, including CDNs that don't compress unknown binary types.
+const isGzip = (b) => b[0] === 0x1f && b[1] === 0x8b;
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 const fail = (msg) => {
   console.error(`\n✖ ${msg}`);
@@ -186,10 +190,11 @@ async function compileTargets(c, manifest) {
     }, 1000);
     const base64 = await job.finally(() => clearInterval(timer));
     process.stdout.write("\r  100%   \n");
-    const bytes = Buffer.from(base64, "base64");
+    const raw = Buffer.from(base64, "base64");
+    const bytes = flags.gzip === false ? raw : gzipSync(raw, { level: 9 });
     const out = path.join(collectionDir(c), manifest.targets || "targets.mind");
     await writeFile(out, bytes);
-    log(`  → ${path.relative(root, out)} (${kb(bytes.length)})`);
+    log(`  → ${path.relative(root, out)} (${kb(bytes.length)}${bytes !== raw ? `, gzipped from ${kb(raw.length)}` : ""})`);
   } finally {
     await browser.close();
     await server.close();
@@ -283,6 +288,15 @@ async function optimize() {
     await makePoster(video, path.join(collectionDir(c), item.poster));
     log(`  ${kb(before)} → ${kb((await stat(video)).size)}`);
   }
+  const mind = path.join(collectionDir(c), manifest.targets);
+  if (existsSync(mind)) {
+    const buf = await readFile(mind);
+    if (!isGzip(buf)) {
+      const gz = gzipSync(buf, { level: 9 });
+      await writeFile(mind, gz);
+      log(`Compressed ${manifest.targets}: ${kb(buf.length)} → ${kb(gz.length)}`);
+    }
+  }
   await writeManifest(c, manifest);
   await check([c]);
 }
@@ -319,14 +333,17 @@ async function check(ids) {
     else {
       const buf = await readFile(mindFile);
       try {
-        const count = decode(buf).dataList.length;
+        const count = decode(isGzip(buf) ? gunzipSync(buf) : buf).dataList.length;
         if (count !== manifest.items.length) {
           err(c, `${manifest.targets} has ${count} image(s) but collection.json lists ${manifest.items.length}`);
         }
       } catch {
         err(c, `${manifest.targets} is not a valid MindAR file`);
       }
-      if (buf.length > BUDGET.mind) warn(c, `${manifest.targets} is ${kb(buf.length)}; recompile from smaller images (≤${TARGET_MAX_SIDE}px)`);
+      if (!isGzip(buf)) warn(c, `${manifest.targets} is not compressed; run: npm run content -- optimize ${c}`);
+      if (buf.length > BUDGET.mindPerItem * manifest.items.length) {
+        warn(c, `${manifest.targets} is ${kb(buf.length)}; recompile from smaller, sharper images (≤${TARGET_MAX_SIDE}px)`);
+      }
     }
 
     for (const item of manifest.items) {

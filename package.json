@@ -11,19 +11,21 @@
     "typecheck": "tsc --noEmit",
     "content": "node tools/content.mjs",
     "content:check": "node tools/content.mjs check",
-    "test:tracking": "node tools/track-test.mjs"
+    "test:tracking": "node tools/track-test.mjs",
+    "serve:dist": "node tools/serve-dist.mjs"
   },
   "devDependencies": {
     "@msgpack/msgpack": "^2.8.0",
-    "@puppeteer/browsers": "^2.10.5",
+    "@puppeteer/browsers": "^3.2.6",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-basic-ssl": "^2.0.0",
     "ffmpeg-static": "^5.2.0",
-    "puppeteer-core": "^24.10.0",
+    "puppeteer-core": "^25.16.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.4.5"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "three": "^0.170.0"
   },
   "allowScripts": {

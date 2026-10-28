@@ -66,6 +66,7 @@ try {
     if (detectedAfter != null) {
       await new Promise((r) => setTimeout(r, 1500)); // let filters settle
       metrics = await page.evaluate((ms) => window.__sim.measure(ms, window.__overlayCorners), measureMs);
+      metrics.activeItem = await page.evaluate(() => window.__engine?.activeOverlay?.item.id ?? null);
     }
     if (args.screenshot) await page.screenshot({ path: `${args.screenshot}-${motion}.png` });
     results[motion] = { detectedAfterMs: detectedAfter, ...metrics, startupMarksMs: marks };

@@ -1,0 +1,12 @@
+{
+  "name": "Vivid AR",
+  "short_name": "Vivid AR",
+  "description": "Point your camera at the printed image and watch it come to life.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

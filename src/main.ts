@@ -150,7 +150,19 @@ function likelyCameraSize(): [number, number] {
 async function fetchTargets(c: ResolvedCollection): Promise<ArrayBuffer> {
   const res = await fetch(resolveUrl(c, c.targets));
   if (!res.ok) throw new ContentError(`Could not load the image targets (HTTP ${res.status}).`);
-  return res.arrayBuffer();
+  return gunzipIfNeeded(await res.arrayBuffer());
+}
+
+// targets.mind is stored gzipped by tools/content.mjs; plain files also work.
+async function gunzipIfNeeded(buffer: ArrayBuffer): Promise<ArrayBuffer> {
+  const head = new Uint8Array(buffer, 0, 2);
+  if (head[0] !== 0x1f || head[1] !== 0x8b) return buffer;
+  if ("DecompressionStream" in window) {
+    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Response(stream).arrayBuffer();
+  }
+  const { gunzipSync } = await import("fflate"); // older iOS (< 16.4)
+  return gunzipSync(new Uint8Array(buffer)).buffer as ArrayBuffer;
 }
 
 async function cameraAlreadyAllowed() {
