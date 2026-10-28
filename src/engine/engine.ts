@@ -15,7 +15,7 @@ import {
   VideoTexture,
   WebGLRenderer,
 } from "three";
-import { Controller, type ControllerEvent } from "../vendor/mindar/mindar-image.prod.js";
+import { Compiler, Controller, type ControllerEvent } from "../vendor/mindar/mindar-image.prod.js";
 import { ContentError, resolveUrl, type ResolvedCollection } from "../content";
 import type { Camera } from "./camera";
 import { VideoOverlay } from "./overlay";
@@ -91,6 +91,9 @@ export class ArEngine {
   private coverScale = 1;
   private muted = true;
   private running = false;
+  private loopActive = false;
+  private onDrained: (() => void) | null = null;
+  private warming: Promise<void> | null = null;
   /** Dev only (?slowtrack=ms). */
   devTrackDelayMs = 0;
 
@@ -143,14 +146,12 @@ export class ArEngine {
   load(targetsBuffer: ArrayBuffer) {
     this.targetsBuffer = targetsBuffer;
     const { items, playback, tracking } = this.collection;
-    // A throwaway controller just to read the file's target dimensions.
-    const probe = new Controller({ inputWidth: 64, inputHeight: 64 });
     try {
-      this.dimensions = probe.addImageTargetsFromBuffer(targetsBuffer).dimensions;
+      this.dimensions = new Compiler()
+        .importData(targetsBuffer)
+        .map((d) => [d.targetImage.width, d.targetImage.height] as [number, number]);
     } catch {
       throw new ContentError("targets.mind is corrupt or from an unsupported MindAR version.");
-    } finally {
-      probe.dispose();
     }
     if (this.dimensions.length !== items.length) {
       throw new ContentError(
@@ -180,18 +181,25 @@ export class ArEngine {
     if (items.length <= 12) this.slots.forEach((s) => s.overlay.preloadPoster());
   }
 
-  /** Builds the tracker for the current camera size and warms up the GPU. */
-  async start() {
+  /**
+   * Build and warm up the tracker for a guessed camera size before the camera
+   * is even open (compiling the GPU kernels is the slowest part of startup).
+   */
+  prewarm(width: number, height: number): Promise<void> {
+    this.warming = this.buildController(width, height).catch((err) => {
+      console.warn("[vivid] prewarm failed, will retry on start", err);
+    });
+    return this.warming;
+  }
+
+  private async buildController(width: number, height: number) {
     if (!this.targetsBuffer) throw new Error("load() first");
-    this.stopTracking();
-    const { width, height } = this.camera;
+    this.disposeController();
     this.trackCanvas.width = width;
     this.trackCanvas.height = height;
-    this.trackCtx.drawImage(this.camera.video, 0, 0);
-    this.frameTime = performance.now();
 
     const { tracking } = this.collection;
-    this.controller = new Controller({
+    const controller = new Controller({
       inputWidth: width,
       inputHeight: height,
       maxTrack: 1,
@@ -212,31 +220,57 @@ export class ArEngine {
       [0, f, height / 2],
       [0, 0, 1],
     ];
-    this.controller.projectionTransform = K;
-    this.controller.projectionMatrix = this.controller._glProjectionMatrix({
-      projectionTransform: K,
-      width,
-      height,
-      near: 10,
-      far: 100000,
-    });
-    this.controller.addImageTargetsFromBuffer(this.targetsBuffer);
+    controller.projectionTransform = K;
+    controller.projectionMatrix = controller._glProjectionMatrix({ projectionTransform: K, width, height, near: 10, far: 100000 });
+    controller.addImageTargetsFromBuffer(this.targetsBuffer);
+    this.controller = controller;
 
+    // First run compiles GPU kernels (the slow part). Yield first so the UI can paint.
+    await new Promise((r) => setTimeout(r, 0));
+    controller.dummyRun(this.trackCanvas);
+  }
+
+  /** Start (or resume) tracking the live camera. */
+  async start() {
+    if (!this.targetsBuffer) throw new Error("load() first");
+    await this.warming;
+    await this.drainLoop();
+    const { width, height } = this.camera;
+    if (!this.controller || this.controller.inputWidth !== width || this.controller.inputHeight !== height) {
+      await this.buildController(width, height);
+    }
+    const controller = this.controller!;
+    this.trackCtx.drawImage(this.camera.video, 0, 0);
+    this.frameTime = performance.now();
+
+    // New texture each (re)start: the frame size may have changed (rotation)
+    // and GPU texture storage can't be resized in place.
     if (this.options.syncCamera) {
-      const tex = new CanvasTexture(this.trackCanvas);
-      this.setBackground(tex);
+      this.setBackground(new CanvasTexture(this.trackCanvas));
     } else {
       this.setBackground(new VideoTexture(this.camera.video));
     }
     this.resize();
 
-    // First run compiles GPU kernels (can take a second on phones).
-    await new Promise((r) => setTimeout(r, 0));
-    this.controller.dummyRun(this.trackCanvas);
-
     this.running = true;
-    this.controller.processVideo(this.options.syncCamera ? this.trackCanvas : this.camera.video);
+    this.loopActive = true;
+    controller.processVideo(this.options.syncCamera ? this.trackCanvas : this.camera.video);
     if (!this.raf) this.raf = requestAnimationFrame(this.loop);
+  }
+
+  /**
+   * MindAR's processing loop only checks its stop flag between frames. Wait
+   * for it to wind down so a restart never leaves two loops running.
+   */
+  private async drainLoop() {
+    if (!this.loopActive) return;
+    await new Promise<void>((resolve) => {
+      this.onDrained = resolve;
+      setTimeout(resolve, 1000);
+    });
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    this.loopActive = false;
+    this.onDrained = null;
   }
 
   private setBackground(tex: Texture) {
@@ -254,6 +288,12 @@ export class ArEngine {
       return;
     }
     // processDone: the tracker finished the frame in trackCanvas.
+    if (!this.running) {
+      this.pending.clear();
+      this.loopActive = false;
+      this.onDrained?.();
+      return;
+    }
     if (import.meta.env.DEV && this.devTrackDelayMs) {
       // Simulate a slow phone: tracking results arrive later than the camera frame.
       const until = performance.now() + this.devTrackDelayMs;
@@ -273,6 +313,8 @@ export class ArEngine {
 
     // Phone rotated: the stream's dimensions swap and the tracker must be rebuilt.
     if (this.camera.width && (this.camera.width !== this.trackCanvas.width || this.camera.height !== this.trackCanvas.height)) {
+      this.running = false;
+      this.controller?.stopProcessVideo();
       this.start().catch((err) => console.error("[vivid] tracker restart failed", err));
       return;
     }
@@ -379,19 +421,20 @@ export class ArEngine {
     return this.slots.find((s) => s.overlay.visible)?.overlay ?? null;
   }
 
-  private stopTracking() {
+  private disposeController() {
     this.running = false;
-    if (this.controller) {
-      this.controller.stopProcessVideo();
-      this.controller.dispose();
-      this.controller = null;
-    }
+    this.controller?.stopProcessVideo();
+    this.controller?.dispose();
+    this.controller = null;
+    this.loopActive = false;
     this.pending.clear();
   }
 
   /** Pause everything (e.g. tab hidden). Call start() to resume. */
   pause() {
-    this.stopTracking();
+    // Keep the warmed-up controller; only stop its loop.
+    this.running = false;
+    this.controller?.stopProcessVideo();
     const now = performance.now();
     for (const { overlay } of this.slots) {
       if (overlay.visible) overlay.lost(now - this.collection.playback.restartAfterLostMs);
@@ -406,6 +449,7 @@ export class ArEngine {
 
   dispose() {
     this.pause();
+    this.disposeController();
     this.resizeObserver.disconnect();
     this.slots.forEach((s) => s.overlay.dispose());
     this.bgTexture?.dispose();

@@ -81,13 +81,16 @@ try {
       await new Promise((r) => setTimeout(r, 250));
     }
 
+    const marks = await page.evaluate(() =>
+      Object.fromEntries(performance.getEntriesByType("mark").map((m) => [m.name.replace("vivid:", ""), Math.round(m.startTime)])),
+    );
     let metrics = null;
     if (detectedAfter != null) {
       await new Promise((r) => setTimeout(r, 1500)); // let filters settle
       metrics = await page.evaluate((ms) => window.__sim.measure(ms, window.__overlayCorners), measureMs);
     }
     if (args.screenshot) await page.screenshot({ path: `${args.screenshot}-${motion}.png` });
-    results[motion] = { detectedAfterMs: detectedAfter, ...metrics };
+    results[motion] = { detectedAfterMs: detectedAfter, ...metrics, startupMarksMs: marks };
     if (detectedAfter == null || args.verbose) results[motion].logs = logs.slice(-15);
     results[motion].gpu = gl;
     await page.close();

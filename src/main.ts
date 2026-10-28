@@ -73,6 +73,7 @@ const camera = new Camera();
 let engine: ArEngine | null = null;
 let collection: ResolvedCollection | null = null;
 let targetsBuffer: Promise<ArrayBuffer> | null = null;
+let preparing: Promise<ArEngine> | null = null;
 let wantsRunning = false;
 let soundOn = false;
 let syncCamera = true;
@@ -97,9 +98,53 @@ async function boot() {
     return;
   }
 
+  // Warm up the tracker (GPU shader compilation, ~1-2 s) while the visitor
+  // reads the intro or answers the camera prompt, not after.
+  preparing = prepareEngine(collection, targetsBuffer);
+  preparing.catch(() => undefined); // surfaced in startAr()
+
   // Skip the intro for returning visitors who already allowed the camera.
   if (sim || (await cameraAlreadyAllowed())) startAr();
   else show("intro");
+}
+
+async function prepareEngine(c: ResolvedCollection, targets: Promise<ArrayBuffer>) {
+  const { ArEngine } = await engineModule;
+  mark("engine-module");
+  const e = new ArEngine(
+    ui.stage,
+    c,
+    camera,
+    {
+      onFound: (overlay) => {
+        mark("first-found");
+        ui.scanHint.hidden = true;
+        ui.sound.hidden = !overlay.wantsAudio;
+      },
+      onLost: () => {
+        if (!engine?.activeOverlay) {
+          ui.scanHint.hidden = false;
+          ui.sound.hidden = true;
+        }
+      },
+      onContextLost: () =>
+        showError("Display was interrupted", "Your browser reset the graphics. Reload to continue.", "Reload"),
+    },
+    { syncCamera },
+  );
+  e.load(await targets);
+  mark("targets");
+  engine = e;
+  exposeDebugHooks();
+  await e.prewarm(...likelyCameraSize());
+  mark("prewarmed");
+  return e;
+}
+
+// The camera is asked for 1280x720; phones held upright deliver it rotated.
+function likelyCameraSize(): [number, number] {
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  return portrait ? [720, 1280] : [1280, 720];
 }
 
 async function fetchTargets(c: ResolvedCollection): Promise<ArrayBuffer> {
@@ -119,35 +164,17 @@ async function cameraAlreadyAllowed() {
 
 let starting = false;
 async function startAr() {
-  if (starting || !collection || !targetsBuffer) return;
+  if (starting || !preparing) return;
   starting = true;
   wantsRunning = true;
   try {
     setStatus("Starting camera…");
-    const [{ ArEngine }] = await Promise.all([engineModule, camera.start()]);
-
+    const [ready] = await Promise.all([preparing, camera.start().then(() => mark("camera"))]);
     setStatus("Preparing AR…");
-    if (!engine) {
-      engine = new ArEngine(ui.stage, collection, camera, {
-        onFound: (overlay) => {
-          ui.scanHint.hidden = true;
-          ui.sound.hidden = !overlay.wantsAudio;
-        },
-        onLost: () => {
-          if (!engine?.activeOverlay) {
-            ui.scanHint.hidden = false;
-            ui.sound.hidden = true;
-          }
-        },
-        onContextLost: () =>
-          showError("Display was interrupted", "Your browser reset the graphics. Reload to continue.", "Reload"),
-      }, { syncCamera });
-      engine.load(await targetsBuffer);
-      exposeDebugHooks();
-    }
-    await engine.start();
+    await ready.start();
+    mark("tracking");
     show("ar");
-    ui.scanHint.hidden = !!engine.activeOverlay;
+    ui.scanHint.hidden = !!ready.activeOverlay;
   } catch (error) {
     wantsRunning = false;
     camera.stop();
@@ -170,6 +197,11 @@ function report(error: unknown) {
     showError("Something went wrong", "Please check your connection and try again.");
   }
 }
+
+// Startup timing, visible in DevTools > Performance and via performance.getEntriesByType("mark").
+const mark = (name: string) => {
+  if (!performance.getEntriesByName(`vivid:${name}`).length) performance.mark(`vivid:${name}`);
+};
 
 const isWebGLError = (error: unknown) => /webgl|context/i.test((error as Error)?.message ?? "");
 
